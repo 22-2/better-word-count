@@ -27,6 +27,10 @@ export function getCharacterCount(text: string): number {
   return text.length;
 }
 
+export function getCharacterCountWithoutWhiteSpace(text: string): number {
+  return text.replace(/[ 　\s\t\n]/gm, "").length;
+}
+
 export function getFootnoteCount(text: string): number {
   const regularFn = text.match(/\[\^\S+](?!:)/g);
   const inlineFn = text.match(/\^\[[^^].+?]/g);

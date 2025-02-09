@@ -1,17 +1,17 @@
+import { syntaxTree } from "@codemirror/language";
 import { EditorState, Line, RangeSetBuilder, StateEffect, StateField, Transaction } from "@codemirror/state";
 import {
-  ViewUpdate,
-  PluginValue,
-  EditorView,
-  ViewPlugin,
-  DecorationSet,
   Decoration,
+  DecorationSet,
+  EditorView,
+  PluginValue,
+  ViewPlugin,
+  ViewUpdate,
   WidgetType,
 } from "@codemirror/view";
-import { syntaxTree } from "@codemirror/language";
-import type BetterWordCount from "src/main";
-import { getWordCount } from "src/utils/StatUtils";
 import { MATCH_COMMENT, MATCH_HTML_COMMENT } from "src/constants";
+import type BetterWordCount from "src/main";
+import { getCharacterCountWithoutWhiteSpace, getWordCount } from "src/utils/StatUtils";
 
 export const pluginField = StateField.define<BetterWordCount>({
   create() {
@@ -74,7 +74,7 @@ class StatusBarEditorPlugin implements PluginValue {
     }
   }
 
-  destroy() {}
+  destroy() { }
 }
 
 export const statusBarEditorPlugin = ViewPlugin.fromClass(StatusBarEditorPlugin);
@@ -83,7 +83,9 @@ interface SectionCountData {
   line: number;
   level: number;
   self: number;
+  selfCh: number;
   total: number;
+  totalCh: number;
   pos: number;
 }
 
@@ -96,16 +98,16 @@ class SectionWidget extends WidgetType {
   }
 
   eq(widget: this): boolean {
-    const { pos, self, total } = this.data;
-    return pos === widget.data.pos && self === widget.data.self && total === widget.data.total;
+    const { pos, selfCh, totalCh } = this.data;
+    return pos === widget.data.pos && selfCh === widget.data.selfCh && totalCh === widget.data.totalCh;
   }
 
   getDisplayText() {
-    const { self, total } = this.data;
-    if (self && self !== total) {
-      return `${self} / ${total}`;
+    const { selfCh, totalCh } = this.data;
+    if (selfCh && selfCh !== totalCh) {
+      return `${selfCh} / ${totalCh}`;
     }
-    return total.toString();
+    return totalCh.toString();
   }
 
   toDOM() {
@@ -116,6 +118,7 @@ class SectionWidget extends WidgetType {
 class SectionWordCountEditorPlugin implements PluginValue {
   decorations: DecorationSet;
   lineCounts: any[] = [];
+  lineCountsCh: any[] = [];
 
   constructor(view: EditorView) {
     const plugin = view.state.field(pluginField);
@@ -135,23 +138,24 @@ class SectionWordCountEditorPlugin implements PluginValue {
     if (stripComments) {
       // Strip out comments, but preserve new lines for accurate positioning data
       const preserveNl = (match: string, offset: number, str: string) => {
-        let output = '';
+        let output = "";
         for (let i = offset, len = offset + match.length; i < len; i++) {
           if (/[\r\n]/.test(str[i])) {
             output += str[i];
           }
         }
         return output;
-      }
-  
+      };
+
       docStr = docStr.replace(MATCH_COMMENT, preserveNl).replace(MATCH_HTML_COMMENT, preserveNl);
     }
 
-    const lines = docStr.split(state.facet(EditorState.lineSeparator) || /\r\n?|\n/)
+    const lines = docStr.split(state.facet(EditorState.lineSeparator) || /\r\n?|\n/);
 
     for (let i = 0, len = lines.length; i < len; i++) {
       let line = lines[i];
       this.lineCounts.push(getWordCount(line));
+      this.lineCountsCh.push(getCharacterCountWithoutWhiteSpace(line));
     }
   }
 
@@ -162,6 +166,7 @@ class SectionWordCountEditorPlugin implements PluginValue {
 
     if (this.lineCounts.length && !displaySectionCounts) {
       this.lineCounts = [];
+      this.lineCountsCh = [];
       this.decorations = Decoration.none;
       return;
     } else if (!this.lineCounts.length && displaySectionCounts) {
@@ -180,7 +185,7 @@ class SectionWordCountEditorPlugin implements PluginValue {
         const from = fromB;
         const to = fromB + (toA - fromA);
         const nextTo = from + text.length;
-        
+
         const fromLine = tempDoc.lineAt(from);
         const toLine = tempDoc.lineAt(to);
 
@@ -189,9 +194,11 @@ class SectionWordCountEditorPlugin implements PluginValue {
         const nextFromLine = tempDoc.lineAt(from);
         const nextToLine = tempDoc.lineAt(nextTo);
         const lines: any[] = [];
+        const linesCh: any[] = [];
 
         for (let i = nextFromLine.number; i <= nextToLine.number; i++) {
           lines.push(getWordCount(tempDoc.line(i).text));
+          linesCh.push(getCharacterCountWithoutWhiteSpace(tempDoc.line(i).text));
         }
 
         const spliceStart = fromLine.number - 1;
@@ -201,6 +208,7 @@ class SectionWordCountEditorPlugin implements PluginValue {
         editEndLine = Math.max(editEndLine, spliceStart + (nextToLine.number - nextFromLine.number + 1));
 
         this.lineCounts.splice(spliceStart, spliceLen, ...lines);
+        this.lineCountsCh.splice(spliceStart, spliceLen, ...linesCh);
       });
 
       // Filter out any counts associated with comments in the lines that were edited
@@ -208,12 +216,12 @@ class SectionWordCountEditorPlugin implements PluginValue {
         const tree = syntaxTree(update.state);
         for (let i = editStartLine; i < editEndLine; i++) {
           const line = update.state.doc.line(i + 1);
-          let newLine = '';
+          let newLine = "";
           let pos = 0;
           let foundComment = false;
-  
+
           tree.iterate({
-            enter(node) { 
+            enter(node: any) {
               if (node.name && /comment/.test(node.name)) {
                 foundComment = true;
                 newLine += line.text.substring(pos, node.from - line.from);
@@ -223,10 +231,11 @@ class SectionWordCountEditorPlugin implements PluginValue {
             from: line.from,
             to: line.to,
           });
-  
+
           if (foundComment) {
             newLine += line.text.substring(pos);
             this.lineCounts[i] = getWordCount(newLine);
+            this.lineCountsCh[i] = getCharacterCountWithoutWhiteSpace(newLine);
           }
         }
       }
@@ -246,7 +255,7 @@ class SectionWordCountEditorPlugin implements PluginValue {
     const getHeaderLevel = (line: Line) => {
       const token = tree.resolve(line.from, 1);
       if (/code-?block|math/.test(token?.type?.name)) return null;
-      
+
       const match = line.text.match(/^(#+)[ \t]/);
       return match ? match[1].length : null;
     };
@@ -275,7 +284,9 @@ class SectionWordCountEditorPlugin implements PluginValue {
             line: i,
             level,
             self: 0,
+            selfCh: 0,
             total: 0,
+            totalCh: 0,
             pos: line.to,
           });
         } else if (prevHeading.level === level) {
@@ -286,7 +297,9 @@ class SectionWordCountEditorPlugin implements PluginValue {
             line: i,
             level,
             self: 0,
+            selfCh: 0,
             total: 0,
+            totalCh: 0,
             pos: line.to,
           });
         } else if (prevHeading.level > level) {
@@ -303,7 +316,9 @@ class SectionWordCountEditorPlugin implements PluginValue {
                   line: i,
                   level,
                   self: 0,
+                  selfCh: 0,
                   total: 0,
+                  totalCh: 0,
                   pos: line.to,
                 });
               }
@@ -318,7 +333,9 @@ class SectionWordCountEditorPlugin implements PluginValue {
                 line: i,
                 level,
                 self: 0,
+                selfCh: 0,
                 total: 0,
+                totalCh: 0,
                 pos: line.to,
               });
               break;
@@ -330,7 +347,9 @@ class SectionWordCountEditorPlugin implements PluginValue {
                 line: i,
                 level,
                 self: 0,
+                selfCh: 0,
                 total: 0,
+                totalCh: 0,
                 pos: line.to,
               });
               break;
@@ -345,6 +364,13 @@ class SectionWordCountEditorPlugin implements PluginValue {
             heading.self += count;
           }
           heading.total += count;
+        }
+        const countCh = this.lineCountsCh[i - 1];
+        for (const heading of nested) {
+          if (heading === prevHeading) {
+            heading.selfCh += countCh;
+          }
+          heading.totalCh += countCh;
         }
       }
     }
