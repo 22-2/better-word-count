@@ -1,3 +1,4 @@
+// @ts-expect-error
 import { syntaxTree } from "@codemirror/language";
 import { EditorState, Line, RangeSetBuilder, StateEffect, StateField, Transaction } from "@codemirror/state";
 import {
