@@ -16,3 +16,5 @@ test-vault/
 *.zip
 .DS_Store
 dist/
+
+data.json

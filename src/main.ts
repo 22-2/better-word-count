@@ -1,93 +1,161 @@
-import { MarkdownView, Plugin, WorkspaceLeaf } from "obsidian";
-import BetterWordCountSettingsTab from "./settings/SettingsTab";
-import StatsManager from "./stats/StatsManager";
-import StatusBar from "./status/StatusBar";
-import type { EditorView } from "@codemirror/view";
+// import { MarkdownView, Plugin, WorkspaceLeaf } from "obsidian";
 import {
-  settingsChanged,
-  pluginField,
-  sectionWordCountEditorPlugin,
-  statusBarEditorPlugin,
-} from "./editor/EditorPlugin";
-import { BetterWordCountSettings, DEFAULT_SETTINGS } from "src/settings/Settings";
-import { settingsStore } from "./utils/SvelteStores";
-import BetterWordCountApi from "src/api/api";
-import { handleFileMenu } from "./utils/FileMenu";
+	debounce,
+	Editor,
+	MarkdownView,
+	Plugin,
+	TextFileView,
+	TFile,
+	type MarkdownFileInfo,
+} from "obsidian";
+// import BetterWordCountSettingsTab from "./settings/SettingsTab";
+// import StatsManager from "./stats/StatsManager";
+import { StatusBar } from "@/status-bar/status-bar";
+import { stripFrontMatter } from "@/utils/strip";
+import { WORD_COUNT_WORKER_SRC } from "./workers/counter";
+// import type { EditorView } from "@codemirror/view";
+// import {
+// 	settingsChanged,
+// 	pluginField,
+// 	sectionWordCountEditorPlugin,
+// 	statusBarEditorPlugin,
+// } from "./editor/EditorPlugin";
+// import {
+// 	type BetterWordCountSettings,
+// 	// DEFAULT_SETTINGS,
+// } from "src/settings/Settings";
+// import { settingsStore } from "./utils/SvelteStores";
+// import BetterWordCountApi from "src/api/api";
+// import { handleFileMenu } from "./utils/FileMenu";
 
 export default class BetterWordCount extends Plugin {
-  public settings: BetterWordCountSettings;
-  public statusBar: StatusBar;
-  public statsManager: StatsManager;
-  public api: BetterWordCountApi = new BetterWordCountApi(this);
+	private worker: Worker | null = null;
+	private statusBar: StatusBar;
 
-  async onunload(): Promise<void> {
-    this.statsManager = null;
-    this.statusBar = null;
-  }
+	private wordCount: number = 0;
+	private characterCount: number = 0;
 
-  async onload() {
-    // Settings Store
-    // this.register(
-    //   settingsStore.subscribe((value) => {
-    //     this.settings = value;
-    //   })
-    // );
-    // Handle Settings
-    this.settings = Object.assign(DEFAULT_SETTINGS, await this.loadData());
-    this.addSettingTab(new BetterWordCountSettingsTab(this.app, this));
+	private requestWordCount = debounce(this.countWords.bind(this), 200);
 
-    // Handle Statistics
-    if (this.settings.collectStats) {
-      this.statsManager = new StatsManager(this.app.vault, this.app.workspace, this);
-    }
+	async onunload(): Promise<void> {
+		this.worker?.terminate();
+		this.worker = null;
+		this.statusBar.unload();
+	}
 
-    // Handle Status Bar
-    let statusBarEl = this.addStatusBarItem();
-    this.statusBar = new StatusBar(statusBarEl, this);
+	async onload() {
+		// Register Events
+		this.registerEvent(
+			this.app.workspace.on("file-open", this.onFileOpen, this),
+		);
+		this.registerEvent(
+			this.app.workspace.on("quick-preview", this.onQuickPreview, this),
+		);
+		this.registerEvent(
+			this.app.workspace.on(
+				"editor-selection-change",
+				this.onSelection,
+				this,
+			),
+		);
 
-    // Handle the Editor Plugins
-    this.registerEditorExtension([pluginField.init(() => this), statusBarEditorPlugin, sectionWordCountEditorPlugin]);
+		// Register web worker
+		this.worker = new Worker(
+			URL.createObjectURL(
+				new Blob([WORD_COUNT_WORKER_SRC], {
+					type: "text/javascript",
+				}),
+			),
+		);
+		this.worker.onmessage = this.onWorkerMessage.bind(this);
 
-    this.registerEvent(
-      this.app.workspace.on("active-leaf-change", async (leaf: WorkspaceLeaf) => {
-        if (leaf.view.getViewType() !== "markdown") {
-          this.statusBar.updateAltBar();
-        }
+		// Add status bar
+		const statusBarEl = this.addStatusBarItem();
+		this.statusBar = new StatusBar(statusBarEl);
+		this.statusBar.load();
+	}
 
-        if (!this.settings.collectStats) return;
-        await this.statsManager.recalcTotals();
-      })
-    );
+	// async saveSettings(): Promise<void> {
+	// 	await this.saveData(this.settings);
+	// }
 
-    this.registerEvent(
-      this.app.vault.on("delete", async () => {
-        if (!this.settings.collectStats) return;
-        await this.statsManager.recalcTotals();
-      })
-    );
+	// onDisplaySectionCountsChange() {
+	// 	this.app.workspace.getLeavesOfType("markdown").forEach((leaf) => {
+	// 		if (leaf?.view instanceof MarkdownView) {
+	// 			const cm = (leaf.view.editor as any).cm as EditorView;
+	// 			if (cm.dispatch) {
+	// 				cm.dispatch({
+	// 					effects: [settingsChanged.of()],
+	// 				});
+	// 			}
+	// 		}
+	// 	});
+	// }
+	//
+	async onFileOpen() {
+		let text = "";
+		let shouldShowStats = false;
 
-    // Register a new action for right clicking on folders
-    this.registerEvent(
-      this.app.workspace.on("file-menu", (menu, file, source) => {
-        handleFileMenu(menu, file, source, this);
-      })
-    );
-  }
+		const view = this.app.workspace.getActiveFileView();
 
-  async saveSettings(): Promise<void> {
-    await this.saveData(this.settings);
-  }
+		if (
+			view &&
+			view.file &&
+			(view.file.extension === "md" ||
+				(view instanceof TextFileView && view.isPlaintext))
+		) {
+			const isMarkdown = view.file.extension === "md";
+			const raw = await this.app.vault.cachedRead(view.file);
 
-  onDisplaySectionCountsChange() {
-    this.app.workspace.getLeavesOfType("markdown").forEach((leaf) => {
-      if (leaf?.view instanceof MarkdownView) {
-        const cm = (leaf.view.editor as any).cm as EditorView;
-        if (cm.dispatch) {
-          cm.dispatch({
-            effects: [settingsChanged.of()],
-          });
-        }
-      }
-    });
-  }
+			text = isMarkdown ? stripFrontMatter(raw) : raw;
+			shouldShowStats = true;
+		}
+
+		// TODO: statusBar things
+		// this.statusBarEl.toggle(shouldShowStats);
+
+		this.updateCount(text);
+	}
+
+	onSelection(editor: Editor, _info: MarkdownView | MarkdownFileInfo) {
+		const selection = editor.getSelection();
+		if (selection) this.updateCount(selection);
+		else this.onFileOpen();
+	}
+
+	onQuickPreview(file: TFile, previewText: string) {
+		if (this.app.workspace.getActiveFile() === file) {
+			this.updateCount(stripFrontMatter(previewText));
+		}
+	}
+
+	/** Throttled entry-point */
+	private countWords(text: string) {
+		if (!text) {
+			this.wordCount = 0;
+			this.updateStatusBar();
+			return;
+		}
+
+		this.worker?.postMessage(text);
+	}
+
+	/** web-worker → main thread */
+	private onWorkerMessage(event: MessageEvent<number>) {
+		this.wordCount = event.data;
+		this.updateStatusBar();
+	}
+
+	/** Called for every change that should refresh stats */
+	private updateCount(text: string) {
+		this.characterCount = text.length;
+		this.requestWordCount(text);
+	}
+
+	private updateStatusBar() {
+		this.statusBar.update({
+			words: this.wordCount,
+			characters: this.characterCount,
+		});
+	}
 }
