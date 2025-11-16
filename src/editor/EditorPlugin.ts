@@ -10,8 +10,9 @@ import {
 } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
 import type BetterWordCount from "src/main";
-import { getWordCount } from "src/utils/StatUtils";
+import { getWordCount, getCharacterCount } from "src/utils/StatUtils";
 import { MATCH_COMMENT, MATCH_HTML_COMMENT } from "src/constants";
+import { SectionCountDisplayMode } from "src/settings/Settings";
 
 export const pluginField = StateField.define<BetterWordCount>({
   create() {
@@ -84,28 +85,48 @@ interface SectionCountData {
   level: number;
   self: number;
   total: number;
+  selfChars: number;
+  totalChars: number;
   pos: number;
 }
 
 class SectionWidget extends WidgetType {
   data: SectionCountData;
+  displayMode: SectionCountDisplayMode;
 
-  constructor(data: SectionCountData) {
+  constructor(data: SectionCountData, displayMode: SectionCountDisplayMode) {
     super();
     this.data = data;
+    this.displayMode = displayMode;
   }
 
   eq(widget: this): boolean {
-    const { pos, self, total } = this.data;
-    return pos === widget.data.pos && self === widget.data.self && total === widget.data.total;
+    const { pos, self, total, selfChars, totalChars } = this.data;
+    return pos === widget.data.pos && 
+           self === widget.data.self && 
+           total === widget.data.total && 
+           selfChars === widget.data.selfChars && 
+           totalChars === widget.data.totalChars &&
+           this.displayMode === widget.displayMode;
   }
 
   getDisplayText() {
-    const { self, total } = this.data;
-    if (self && self !== total) {
-      return `${self} / ${total}`;
+    const { self, total, selfChars, totalChars } = this.data;
+    
+    if (this.displayMode === SectionCountDisplayMode.words) {
+      // Display word counts
+      const count = (self && self !== total) ? `${self} / ${total}` : total.toString();
+      return `${count} words`;
+    } else if (this.displayMode === SectionCountDisplayMode.characters) {
+      // Display character counts
+      const count = (selfChars && selfChars !== totalChars) ? 
+        `${selfChars} / ${totalChars}` : 
+        `${totalChars}`;
+      return `${count} chars`;
     }
-    return total.toString();
+    
+    // This shouldn't happen, but return empty string as fallback
+    return '';
   }
 
   toDOM() {
@@ -115,11 +136,11 @@ class SectionWidget extends WidgetType {
 
 class SectionWordCountEditorPlugin implements PluginValue {
   decorations: DecorationSet;
-  lineCounts: any[] = [];
+  lineCounts: { words: number; chars: number }[] = [];
 
   constructor(view: EditorView) {
     const plugin = view.state.field(pluginField);
-    if (!plugin.settings.displaySectionCounts) {
+    if (plugin.settings.sectionCountDisplayMode === SectionCountDisplayMode.disable) {
       this.decorations = Decoration.none;
       return;
     }
@@ -151,20 +172,24 @@ class SectionWordCountEditorPlugin implements PluginValue {
 
     for (let i = 0, len = lines.length; i < len; i++) {
       let line = lines[i];
-      this.lineCounts.push(getWordCount(line));
+      this.lineCounts.push({
+        words: getWordCount(line),
+        chars: getCharacterCount(line)
+      });
     }
   }
 
   update(update: ViewUpdate) {
     const plugin = update.view.state.field(pluginField);
-    const { displaySectionCounts, countComments: stripComments } = plugin.settings;
+    const { sectionCountDisplayMode, countComments: stripComments } = plugin.settings;
     let didSettingsChange = false;
 
-    if (this.lineCounts.length && !displaySectionCounts) {
+    const isDisabled = sectionCountDisplayMode === SectionCountDisplayMode.disable;
+    if (this.lineCounts.length && isDisabled) {
       this.lineCounts = [];
       this.decorations = Decoration.none;
       return;
-    } else if (!this.lineCounts.length && displaySectionCounts) {
+    } else if (!this.lineCounts.length && !isDisabled) {
       didSettingsChange = true;
       this.calculateLineCounts(update.startState, plugin);
     }
@@ -188,10 +213,14 @@ class SectionWordCountEditorPlugin implements PluginValue {
 
         const nextFromLine = tempDoc.lineAt(from);
         const nextToLine = tempDoc.lineAt(nextTo);
-        const lines: any[] = [];
+        const lines: { words: number; chars: number }[] = [];
 
         for (let i = nextFromLine.number; i <= nextToLine.number; i++) {
-          lines.push(getWordCount(tempDoc.line(i).text));
+          const lineText = tempDoc.line(i).text;
+          lines.push({
+            words: getWordCount(lineText),
+            chars: getCharacterCount(lineText)
+          });
         }
 
         const spliceStart = fromLine.number - 1;
@@ -226,7 +255,10 @@ class SectionWordCountEditorPlugin implements PluginValue {
   
           if (foundComment) {
             newLine += line.text.substring(pos);
-            this.lineCounts[i] = getWordCount(newLine);
+            this.lineCounts[i] = {
+              words: getWordCount(newLine),
+              chars: getCharacterCount(newLine)
+            };
           }
         }
       }
@@ -240,7 +272,7 @@ class SectionWordCountEditorPlugin implements PluginValue {
   mkDeco(view: EditorView) {
     const plugin = view.state.field(pluginField);
     const b = new RangeSetBuilder<Decoration>();
-    if (!plugin.settings.displaySectionCounts) return b.finish();
+    if (plugin.settings.sectionCountDisplayMode === SectionCountDisplayMode.disable) return b.finish();
 
     const tree = syntaxTree(view.state);
     const getHeaderLevel = (line: Line) => {
@@ -276,6 +308,8 @@ class SectionWordCountEditorPlugin implements PluginValue {
             level,
             self: 0,
             total: 0,
+            selfChars: 0,
+            totalChars: 0,
             pos: line.to,
           });
         } else if (prevHeading.level === level) {
@@ -287,6 +321,8 @@ class SectionWordCountEditorPlugin implements PluginValue {
             level,
             self: 0,
             total: 0,
+            selfChars: 0,
+            totalChars: 0,
             pos: line.to,
           });
         } else if (prevHeading.level > level) {
@@ -304,6 +340,8 @@ class SectionWordCountEditorPlugin implements PluginValue {
                   level,
                   self: 0,
                   total: 0,
+                  selfChars: 0,
+                  totalChars: 0,
                   pos: line.to,
                 });
               }
@@ -319,6 +357,8 @@ class SectionWordCountEditorPlugin implements PluginValue {
                 level,
                 self: 0,
                 total: 0,
+                selfChars: 0,
+                totalChars: 0,
                 pos: line.to,
               });
               break;
@@ -331,6 +371,8 @@ class SectionWordCountEditorPlugin implements PluginValue {
                 level,
                 self: 0,
                 total: 0,
+                selfChars: 0,
+                totalChars: 0,
                 pos: line.to,
               });
               break;
@@ -342,9 +384,11 @@ class SectionWordCountEditorPlugin implements PluginValue {
         const count = this.lineCounts[i - 1];
         for (const heading of nested) {
           if (heading === prevHeading) {
-            heading.self += count;
+            heading.self += count.words;
+            heading.selfChars += count.chars;
           }
-          heading.total += count;
+          heading.total += count.words;
+          heading.totalChars += count.chars;
         }
       }
     }
@@ -353,13 +397,14 @@ class SectionWordCountEditorPlugin implements PluginValue {
 
     sectionCounts.sort((a, b) => a.line - b.line);
 
+    const displayMode = plugin.settings.sectionCountDisplayMode;
     for (const data of sectionCounts) {
       b.add(
         data.pos,
         data.pos,
         Decoration.widget({
           side: 1,
-          widget: new SectionWidget(data),
+          widget: new SectionWidget(data, displayMode),
         })
       );
     }

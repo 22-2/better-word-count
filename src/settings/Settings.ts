@@ -8,6 +8,12 @@ export enum MetricCounter {
   files,
 }
 
+export enum SectionCountDisplayMode {
+  disable = "disable",
+  words = "words",
+  characters = "characters",
+}
+
 export enum MetricType {
   file,
   daily,
@@ -42,7 +48,7 @@ export interface BetterWordCountSettings {
   countComments: boolean;
   collectStats: boolean;
   pageWords: number;
-  displaySectionCounts: boolean;
+  sectionCountDisplayMode: SectionCountDisplayMode;
   statsPath: string;
 }
 
@@ -77,7 +83,7 @@ export const DEFAULT_SETTINGS: BetterWordCountSettings = {
   ],
   countComments: false,
   collectStats: false,
-  displaySectionCounts: false,
+  sectionCountDisplayMode: SectionCountDisplayMode.disable,
   pageWords: 300,
   statsPath: ".obsidian/vault-stats.json",
 };

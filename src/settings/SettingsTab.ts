@@ -38,15 +38,19 @@ export default class BetterWordCountSettingsTab extends PluginSettingTab {
         });
       });
     new Setting(containerEl)
-      .setName("Display Section Word Count")
-      .setDesc("Turn on if you want to display section word counts next to headings.")
-      .addToggle((cb: ToggleComponent) => {
-        cb.setValue(this.plugin.settings.displaySectionCounts);
-        cb.onChange(async (value: boolean) => {
-          this.plugin.settings.displaySectionCounts = value;
-          this.plugin.onDisplaySectionCountsChange();
-          await this.plugin.saveSettings();
-        });
+      .setName("Display Section Counts")
+      .setDesc("Choose what to display next to headings: disable, word counts, or character counts.")
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("disable", "Disable")
+          .addOption("words", "Word Count")
+          .addOption("characters", "Character Count")
+          .setValue(this.plugin.settings.sectionCountDisplayMode)
+          .onChange(async (value: string) => {
+            this.plugin.settings.sectionCountDisplayMode = value as any;
+            this.plugin.onDisplaySectionCountsChange();
+            await this.plugin.saveSettings();
+          });
       });
     new Setting(containerEl)
       .setName("Page Word Count")
