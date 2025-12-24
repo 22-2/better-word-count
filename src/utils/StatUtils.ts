@@ -24,7 +24,21 @@ export function getWordCount(text: string): number {
 }
 
 export function getCharacterCount(text: string): number {
-  return text.length;
+  if (!text) return 0;
+
+  // Strip markdown list prefixes at the start of each line, e.g.
+  // - item
+  // 1. item
+  // - [ ] task
+  // 1) [x] task
+  const withoutListPrefixes = text.replace(
+    /^\s*(?:[-+*]|\d+[.)])\s+(?:\[(?: |x|X)\]\s+)?/gm,
+    ""
+  );
+
+  // Remove all whitespace (spaces, tabs, newlines) before counting characters.
+  const withoutWhitespace = withoutListPrefixes.replace(/\s+/g, "");
+  return withoutWhitespace.length;
 }
 
 export function getFootnoteCount(text: string): number {

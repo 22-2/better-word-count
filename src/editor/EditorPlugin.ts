@@ -293,10 +293,91 @@ class SectionWordCountEditorPlugin implements PluginValue {
     const sectionCounts: SectionCountData[] = [];
     const nested: SectionCountData[] = [];
 
+    const shouldRenderTopLevelListChars =
+      plugin.settings.sectionCountDisplayMode === SectionCountDisplayMode.characters &&
+      plugin.settings.displayTopLevelListCharacterCounts;
+
+    type TopLevelListAccumulator = {
+      line: number;
+      pos: number;
+      totalChars: number;
+      hasChild: boolean;
+    };
+
+    let topLevelList: TopLevelListAccumulator = null;
+
+    const getListIndent = (ws: string): number => {
+      // Treat tab as 4 spaces (good-enough heuristic for indentation)
+      return ws.replace(/\t/g, "    ").length;
+    };
+
+    const isListItem = (line: Line): { indent: number } | null => {
+      const token = tree.resolve(line.from, 1);
+      if (/code-?block|math/.test(token?.type?.name)) return null;
+
+      const match = line.text.match(/^(\s*)(?:[-+*]|\d+[.)])\s+/);
+      if (!match) return null;
+      return { indent: getListIndent(match[1] || "") };
+    };
+
     for (let i = lineStart.number; i <= lineCount; i++) {
       let line: Line;
       if (i === lineStart.number) line = lineStart;
       else line = doc.line(i);
+
+      // --- Top-level list parent character counts (optional) ---
+      if (shouldRenderTopLevelListChars) {
+        const listInfo = isListItem(line);
+        const lineChars = this.lineCounts[i - 1]?.chars ?? getCharacterCount(line.text);
+        const isIndented = /^\s+/.test(line.text);
+
+        if (listInfo) {
+          if (listInfo.indent === 0) {
+            // Starting a new top-level list item: finalize previous one (if it had children)
+            if (topLevelList && topLevelList.hasChild) {
+              sectionCounts.push({
+                line: topLevelList.line,
+                level: 0,
+                self: 0,
+                total: 0,
+                selfChars: 0,
+                totalChars: topLevelList.totalChars,
+                pos: topLevelList.pos,
+              });
+            }
+            topLevelList = {
+              line: i,
+              pos: line.to,
+              totalChars: lineChars,
+              hasChild: false,
+            };
+          } else if (topLevelList) {
+            // Nested list item: counts toward the current top-level item
+            topLevelList.hasChild = true;
+            topLevelList.totalChars += lineChars;
+          }
+        } else if (topLevelList) {
+          // Non-list line: treat indented lines as part of the list item; unindented lines end the list block
+          if (line.text.trim() === "") {
+            // ignore blank lines
+          } else if (isIndented) {
+            topLevelList.totalChars += lineChars;
+          } else {
+            if (topLevelList.hasChild) {
+              sectionCounts.push({
+                line: topLevelList.line,
+                level: 0,
+                self: 0,
+                total: 0,
+                selfChars: 0,
+                totalChars: topLevelList.totalChars,
+                pos: topLevelList.pos,
+              });
+            }
+            topLevelList = null;
+          }
+        }
+      }
 
       const level = getHeaderLevel(line);
       const prevHeading = nested.last();
@@ -391,6 +472,20 @@ class SectionWordCountEditorPlugin implements PluginValue {
           heading.totalChars += count.chars;
         }
       }
+    }
+
+    // If we ended while still in a top-level list item, finalize it.
+    if (shouldRenderTopLevelListChars && topLevelList && topLevelList.hasChild) {
+      sectionCounts.push({
+        line: topLevelList.line,
+        level: 0,
+        self: 0,
+        total: 0,
+        selfChars: 0,
+        totalChars: topLevelList.totalChars,
+        pos: topLevelList.pos,
+      });
+      topLevelList = null;
     }
 
     if (nested.length) sectionCounts.push(...nested);

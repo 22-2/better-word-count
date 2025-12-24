@@ -52,6 +52,20 @@ export default class BetterWordCountSettingsTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
+
+    if (this.plugin.settings.sectionCountDisplayMode === "characters") {
+      new Setting(containerEl)
+        .setName("Display Top-level List Character Count")
+        .setDesc("Show character counts after top-level parent list items that contain nested list items.")
+        .addToggle((cb: ToggleComponent) => {
+          cb.setValue(this.plugin.settings.displayTopLevelListCharacterCounts);
+          cb.onChange(async (value: boolean) => {
+            this.plugin.settings.displayTopLevelListCharacterCounts = value;
+            this.plugin.onDisplaySectionCountsChange();
+            await this.plugin.saveSettings();
+          });
+        });
+    }
     new Setting(containerEl)
       .setName("Page Word Count")
       .setDesc("Set how many words count as one \"page\"")
