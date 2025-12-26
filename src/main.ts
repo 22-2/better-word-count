@@ -1,4 +1,4 @@
-import { MarkdownView, Plugin, WorkspaceLeaf } from "obsidian";
+import { MarkdownView, Plugin, WorkspaceLeaf, type FileManager } from "obsidian";
 import BetterWordCountSettingsTab from "./settings/SettingsTab";
 import StatsManager from "./stats/StatsManager";
 import StatusBar from "./status/StatusBar";
@@ -35,6 +35,33 @@ export default class BetterWordCount extends Plugin {
     // Handle Settings
     this.settings = Object.assign(DEFAULT_SETTINGS, await this.loadData());
     this.addSettingTab(new BetterWordCountSettingsTab(this.app, this));
+
+    this.addCommand({
+      id: "bwc-toggle-title-character-counts",
+      name: "Toggle Title Character Counts (frontmatter)",
+      checkCallback: (checking: boolean) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file || file.extension !== "md") return false;
+        if (checking) return true;
+        (async () => {
+          const key = "enable-title-character-counts";
+          const fm = (this.app as any).fileManager as FileManager;
+            await fm.processFrontMatter(file, (frontmatter: any) => {
+              const cur = frontmatter?.[key];
+              const enabled = cur === true || cur === 1 || (typeof cur === "string" && cur.toLowerCase() === "true");
+              if (enabled) {
+                delete frontmatter[key];
+              } else {
+                frontmatter[key] = true;
+              }
+            });
+          // Refresh decorations
+          this.onDisplaySectionCountsChange();
+        })();
+
+        return true;
+      },
+    });
 
     // Handle Statistics
     if (this.settings.collectStats) {

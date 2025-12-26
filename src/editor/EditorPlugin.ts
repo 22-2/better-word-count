@@ -14,6 +14,25 @@ import { getWordCount, getCharacterCount } from "src/utils/StatUtils";
 import { MATCH_COMMENT, MATCH_HTML_COMMENT } from "src/constants";
 import { SectionCountDisplayMode } from "src/settings/Settings";
 
+const FRONTMATTER_ENABLE_TITLE_CHARACTER_COUNTS = "enable-title-character-counts";
+
+function isTitleCharacterCountsEnabled(plugin: BetterWordCount): boolean {
+  const file = plugin.app.workspace.getActiveFile();
+  if (!file) return false;
+  // Only applies to markdown notes.
+  if (file.extension !== "md") return false;
+
+  const frontmatter = plugin.app.metadataCache.getFileCache(file)?.frontmatter;
+  if (!frontmatter) return false;
+
+  const raw = (frontmatter as any)[FRONTMATTER_ENABLE_TITLE_CHARACTER_COUNTS];
+  if (raw === undefined || raw === null) return false;
+  if (raw === false) return false;
+  if (typeof raw === "string" && raw.toLowerCase() === "false") return false;
+  if (raw === 0) return false;
+  return true;
+}
+
 export const pluginField = StateField.define<BetterWordCount>({
   create() {
     return null;
@@ -184,7 +203,19 @@ class SectionWordCountEditorPlugin implements PluginValue {
     const { sectionCountDisplayMode, countComments: stripComments } = plugin.settings;
     let didSettingsChange = false;
 
-    const isDisabled = sectionCountDisplayMode === SectionCountDisplayMode.disable;
+    const hasSettingsChangedEffect = update.transactions.some((tr) =>
+      tr.effects?.some((e) => e.is(settingsChanged))
+    );
+    if (hasSettingsChangedEffect) {
+      didSettingsChange = true;
+    }
+
+    const frontmatterCharactersEnabled = isTitleCharacterCountsEnabled(plugin);
+    const effectiveDisplayMode = frontmatterCharactersEnabled
+      ? SectionCountDisplayMode.characters
+      : sectionCountDisplayMode;
+
+    const isDisabled = effectiveDisplayMode === SectionCountDisplayMode.disable;
     if (this.lineCounts.length && isDisabled) {
       this.lineCounts = [];
       this.decorations = Decoration.none;
@@ -272,7 +303,12 @@ class SectionWordCountEditorPlugin implements PluginValue {
   mkDeco(view: EditorView) {
     const plugin = view.state.field(pluginField);
     const b = new RangeSetBuilder<Decoration>();
-    if (plugin.settings.sectionCountDisplayMode === SectionCountDisplayMode.disable) return b.finish();
+    const frontmatterCharactersEnabled = isTitleCharacterCountsEnabled(plugin);
+    const effectiveDisplayMode = frontmatterCharactersEnabled
+      ? SectionCountDisplayMode.characters
+      : plugin.settings.sectionCountDisplayMode;
+
+    if (effectiveDisplayMode === SectionCountDisplayMode.disable) return b.finish();
 
     const tree = syntaxTree(view.state);
     const getHeaderLevel = (line: Line) => {
@@ -293,9 +329,7 @@ class SectionWordCountEditorPlugin implements PluginValue {
     const sectionCounts: SectionCountData[] = [];
     const nested: SectionCountData[] = [];
 
-    const shouldRenderTopLevelListChars =
-      plugin.settings.sectionCountDisplayMode === SectionCountDisplayMode.characters &&
-      plugin.settings.displayTopLevelListCharacterCounts;
+    const shouldRenderTopLevelListChars = effectiveDisplayMode === SectionCountDisplayMode.characters && frontmatterCharactersEnabled;
 
     type TopLevelListAccumulator = {
       line: number;
@@ -492,7 +526,7 @@ class SectionWordCountEditorPlugin implements PluginValue {
 
     sectionCounts.sort((a, b) => a.line - b.line);
 
-    const displayMode = plugin.settings.sectionCountDisplayMode;
+    const displayMode = effectiveDisplayMode;
     for (const data of sectionCounts) {
       b.add(
         data.pos,
