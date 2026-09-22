@@ -51,7 +51,7 @@ export function getSelectionStats(editor: EditorLike): {
  */
 export function formatCursorPosition(editor: EditorLike): string {
   const cursor = editor.getCursor("head");
-  const position = `${cursor.line + 1}:${cursor.ch + 1}`;
+  const position = `Ln ${cursor.line + 1}, Ch ${cursor.ch + 1}`;
   const stats = getSelectionStats(editor);
   const hasSelectedText = stats.lines > 0 || stats.characters > 0;
 
@@ -63,7 +63,7 @@ export function formatCursorPosition(editor: EditorLike): string {
   }
   details.push(`${stats.lines} lines`, `${stats.characters} characters`);
 
-  // LINE:CHと括弧の間には、ステータスバー上で読みやすくするため空白を入れる。
+  // 位置と括弧の間には、ステータスバー上で読みやすくするため空白を入れる。
   return `${position} (${details.join(", ")})`;
 }
 
