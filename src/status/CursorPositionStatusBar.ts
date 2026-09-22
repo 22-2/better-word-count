@@ -4,7 +4,7 @@ import type BetterWordCount from "../main";
 
 type EditorLike = Pick<
   Editor,
-  "getCursor" | "getRange" | "listSelections"
+  "getCursor" | "getRange" | "getValue" | "listSelections"
 >;
 
 function comparePositions(a: EditorPosition, b: EditorPosition): number {
@@ -55,7 +55,17 @@ export function formatCursorPosition(editor: EditorLike): string {
   const stats = getSelectionStats(editor);
   const hasSelectedText = stats.lines > 0 || stats.characters > 0;
 
-  if (stats.selections === 1 && !hasSelectedText) return position;
+  if (!hasSelectedText) {
+    // Show the whole note's raw character count only when it is not redundant
+    // with the selection count already shown below.
+    const characterCount = editor.getValue().length;
+    const characterSummary = `${characterCount} characters`;
+
+    if (stats.selections === 1) return `${position} ${characterSummary}`;
+
+    const details = [`${stats.selections} selections`, "0 lines", "0 characters"];
+    return `${position} ${characterSummary} (${details.join(", ")})`;
+  }
 
   const details: string[] = [];
   if (stats.selections > 1) {
