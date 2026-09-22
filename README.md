@@ -4,17 +4,14 @@
 
 ![Better Count Word](https://raw.githubusercontent.com/lukeleppan/better-word-count/master/assets/better-word-count.gif)
 
-This plugin is the same as the built-in **Word Count** plugin, except when you select text, it will count the selected word instead of the whole document. I recommend turning off the built-in **Word Count** because this plugin is designed to replace that. This plugin also has the ability to store statistics about your vault.
+This plugin is the same as the built-in **Word Count** plugin, except when you select text, it will count the selected word instead of the whole document. I recommend turning off the built-in **Word Count** because this plugin is designed to replace that.
 
 ## Features
 
-- Allows you to store statistics about your vault.
 - Works with all languages.
 - Can display a variety of different stats. Including:
   - Words, Characters, Sentences, Footnotes, and Pandoc Citations in current file.
-  - Total Words, Characters, Sentences, Footnotes, Pandoc Citations, and Files in vault.
-  - Words, Characters, Sentences, Footnotes, and Pandoc Citations typed today.
-- Highly Customizable status bar that can be adapted to your needs.
+- Displays words and characters while editing a Markdown file and the Markdown file count elsewhere.
 
 ## Contributors
 
@@ -23,7 +20,6 @@ This plugin is the same as the built-in **Word Count** plugin, except when you s
 - @chrisgrieser
   - Added Footnotes and Citation Counting.
 - @bakuzan
-  - Added page counts.
   - Fixed issue that caused errors at start up.
 - @THeK3nger
   - Fixed issue that occurred when renaming files.

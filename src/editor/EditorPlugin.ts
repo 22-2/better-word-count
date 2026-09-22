@@ -11,7 +11,6 @@ import {
 import { syntaxTree } from "@codemirror/language";
 import type BetterWordCount from "src/main";
 import { getWordCount, getCharacterCount } from "src/utils/StatUtils";
-import { MATCH_COMMENT, MATCH_HTML_COMMENT } from "src/constants";
 import { SectionCountDisplayMode } from "src/settings/Settings";
 
 const FRONTMATTER_ENABLE_TITLE_CHARACTER_COUNTS = "enable-title-character-counts";
@@ -86,9 +85,6 @@ class StatusBarEditorPlugin implements PluginValue {
       let text = "";
       while (!textIter.done) {
         text = text + textIter.next().value;
-      }
-      if (tr.docChanged && plugin.statsManager) {
-        plugin.statsManager.debounceChange(text);
       }
       plugin.statusBar.debounceStatusBarUpdate(text);
     }
@@ -169,25 +165,9 @@ class SectionWordCountEditorPlugin implements PluginValue {
   }
 
   calculateLineCounts(state: EditorState, plugin: BetterWordCount) {
-    const stripComments = plugin.settings.countComments;
-    let docStr = state.doc.toString();
-
-    if (stripComments) {
-      // Strip out comments, but preserve new lines for accurate positioning data
-      const preserveNl = (match: string, offset: number, str: string) => {
-        let output = '';
-        for (let i = offset, len = offset + match.length; i < len; i++) {
-          if (/[\r\n]/.test(str[i])) {
-            output += str[i];
-          }
-        }
-        return output;
-      }
-  
-      docStr = docStr.replace(MATCH_COMMENT, preserveNl).replace(MATCH_HTML_COMMENT, preserveNl);
-    }
-
-    const lines = docStr.split(state.facet(EditorState.lineSeparator) || /\r\n?|\n/)
+    // Section counts include Markdown and HTML comments, matching the fixed
+    // status-bar counters after comment filtering was removed.
+    const lines = state.doc.toString().split(state.facet(EditorState.lineSeparator) || /\r\n?|\n/)
 
     for (let i = 0, len = lines.length; i < len; i++) {
       let line = lines[i];
@@ -200,7 +180,7 @@ class SectionWordCountEditorPlugin implements PluginValue {
 
   update(update: ViewUpdate) {
     const plugin = update.view.state.field(pluginField);
-    const { sectionCountDisplayMode, countComments: stripComments } = plugin.settings;
+    const { sectionCountDisplayMode } = plugin.settings;
     let didSettingsChange = false;
 
     const hasSettingsChangedEffect = update.transactions.some((tr) =>
@@ -229,8 +209,6 @@ class SectionWordCountEditorPlugin implements PluginValue {
       const startDoc = update.startState.doc;
 
       let tempDoc = startDoc;
-      let editStartLine = Infinity;
-      let editEndLine = -Infinity;
 
       update.changes.iterChanges((fromA, toA, fromB, toB, text) => {
         const from = fromB;
@@ -257,42 +235,9 @@ class SectionWordCountEditorPlugin implements PluginValue {
         const spliceStart = fromLine.number - 1;
         const spliceLen = toLine.number - fromLine.number + 1;
 
-        editStartLine = Math.min(editStartLine, spliceStart);
-        editEndLine = Math.max(editEndLine, spliceStart + (nextToLine.number - nextFromLine.number + 1));
-
         this.lineCounts.splice(spliceStart, spliceLen, ...lines);
       });
 
-      // Filter out any counts associated with comments in the lines that were edited
-      if (stripComments) {
-        const tree = syntaxTree(update.state);
-        for (let i = editStartLine; i < editEndLine; i++) {
-          const line = update.state.doc.line(i + 1);
-          let newLine = '';
-          let pos = 0;
-          let foundComment = false;
-  
-          tree.iterate({
-            enter(node) { 
-              if (node.name && /comment/.test(node.name)) {
-                foundComment = true;
-                newLine += line.text.substring(pos, node.from - line.from);
-                pos = node.to - line.from;
-              }
-            },
-            from: line.from,
-            to: line.to,
-          });
-  
-          if (foundComment) {
-            newLine += line.text.substring(pos);
-            this.lineCounts[i] = {
-              words: getWordCount(newLine),
-              chars: getCharacterCount(newLine)
-            };
-          }
-        }
-      }
     }
 
     if (update.docChanged || update.viewportChanged || didSettingsChange) {
