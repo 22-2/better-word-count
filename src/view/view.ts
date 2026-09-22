@@ -1,13 +1,7 @@
 import { ItemView, WorkspaceLeaf } from "obsidian";
 import { STATS_ICON_NAME, VIEW_TYPE_STATS } from "src/constants";
-import type BetterWordCount from "src/main";
-//@ts-ignore
-import Statistics from "./Statistics.svelte";
 
 export default class StatsView extends ItemView {
-  private plugin: BetterWordCount;
-  private statistics: Statistics;
-
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
   }
@@ -25,8 +19,9 @@ export default class StatsView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    this.statistics = new Statistics({
-      target: (this as any).contentEl,
-    });
+    // This view only contained a static placeholder, so native DOM is enough
+    // and avoids shipping a reactive UI runtime for it.
+    this.contentEl.empty();
+    this.contentEl.createEl("h1", { text: "Coming Soon!" });
   }
 }
