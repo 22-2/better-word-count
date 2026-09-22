@@ -1,6 +1,4 @@
 import esbuild from "esbuild";
-import sveltePlugin from "esbuild-svelte";
-import sveltePreprocess from "svelte-preprocess";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -69,14 +67,6 @@ const buildOptions = {
   minify: prod,
   logLevel: "info",
   external: externalDependencies,
-  plugins: [
-    sveltePlugin({
-      compilerOptions: {
-        css: true,
-      },
-      preprocess: sveltePreprocess(),
-    }),
-  ],
 };
 
 async function runBuild() {

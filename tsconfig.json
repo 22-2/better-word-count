@@ -1,17 +1,17 @@
 {
-  "extends": "@tsconfig/svelte/tsconfig.json",
   "compilerOptions": {
     "baseUrl": ".",
-    "types": ["node", "svelte"],
-    "inlineSources": true,
-    // "module": "ESNext",
-    // "target": "es5",
+    "types": ["node"],
     "allowJs": true,
     "noImplicitAny": true,
     "moduleResolution": "node",
-    "importHelpers": true
-    // "lib": ["dom", "es5", "scripthost", "es2015"]
+    "importHelpers": true,
+    "target": "es2018",
+    "module": "commonjs",
+    "lib": ["ES2018", "DOM"],
+    "skipLibCheck": true,
+    "allowUmdGlobalAccess": true
   },
-  "include": ["**/*.ts", "**/*.svelte"],
+  "include": ["**/*.ts"],
   "exclude": ["node_modules/*"]
 }
