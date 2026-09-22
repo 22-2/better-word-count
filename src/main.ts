@@ -10,8 +10,10 @@ import {
   sectionWordCountEditorPlugin,
   statusBarEditorPlugin,
 } from "./editor/EditorPlugin";
-import { BetterWordCountSettings, DEFAULT_SETTINGS } from "src/settings/Settings";
-import { settingsStore } from "./utils/SvelteStores";
+import {
+  BetterWordCountSettings,
+  cloneDefaultSettings,
+} from "src/settings/Settings";
 import BetterWordCountApi from "src/api/api";
 import { handleFileMenu } from "./utils/FileMenu";
 
@@ -29,14 +31,29 @@ export default class BetterWordCount extends Plugin {
   }
 
   async onload() {
-    // Settings Store
-    // this.register(
-    //   settingsStore.subscribe((value) => {
-    //     this.settings = value;
-    //   })
-    // );
-    // Handle Settings
-    this.settings = Object.assign(DEFAULT_SETTINGS, await this.loadData());
+    // Clone the defaults so declarative controls can safely mutate arrays without
+    // changing the shared default object used by future plugin instances.
+    const savedSettings = (await this.loadData()) as Partial<BetterWordCountSettings> | null;
+    const defaultSettings = cloneDefaultSettings();
+    this.settings = {
+      ...defaultSettings,
+      ...savedSettings,
+      // Repair values that older versions could persist as empty or malformed
+      // input, before declarative validation renders the settings tab.
+      statusBar: Array.isArray(savedSettings?.statusBar)
+        ? savedSettings.statusBar
+        : defaultSettings.statusBar,
+      altBar: Array.isArray(savedSettings?.altBar)
+        ? savedSettings.altBar
+        : defaultSettings.altBar,
+      pageWords:
+        Number.isInteger(savedSettings?.pageWords) && savedSettings.pageWords > 0
+          ? savedSettings.pageWords
+          : defaultSettings.pageWords,
+      statsPath: savedSettings?.statsPath?.trim()
+        ? savedSettings.statsPath
+        : defaultSettings.statsPath,
+    };
     this.addSettingTab(new BetterWordCountSettingsTab(this.app, this));
 
     this.addCommand({

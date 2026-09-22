@@ -89,3 +89,19 @@ export const DEFAULT_SETTINGS: BetterWordCountSettings = {
   pageWords: 300,
   statsPath: ".obsidian/vault-stats.json",
 };
+
+export function cloneDefaultSettings(): BetterWordCountSettings {
+  // Settings arrays are edited in place by the declarative list callbacks, so
+  // every plugin instance needs its own copies of the default item objects.
+  return {
+    ...DEFAULT_SETTINGS,
+    statusBar: DEFAULT_SETTINGS.statusBar.map((item) => ({
+      ...item,
+      metric: { ...item.metric },
+    })),
+    altBar: DEFAULT_SETTINGS.altBar.map((item) => ({
+      ...item,
+      metric: { ...item.metric },
+    })),
+  };
+}
