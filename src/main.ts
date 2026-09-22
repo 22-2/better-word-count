@@ -18,7 +18,7 @@ import BetterWordCountApi from "src/api/api";
 import { handleFileMenu } from "./utils/FileMenu";
 
 export default class BetterWordCount extends Plugin {
-  public settings: BetterWordCountSettings;
+  declare public settings: BetterWordCountSettings;
   public statusBar: StatusBar;
   public cursorPositionStatusBar: CursorPositionStatusBar;
   public statsManager: StatsManager;

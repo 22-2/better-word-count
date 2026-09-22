@@ -1,14 +1,13 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
+    "paths": {"*": ["./*"]},
     "types": ["node"],
-    "allowJs": true,
+    "strict": false,
     "noImplicitAny": true,
-    "moduleResolution": "node",
-    "importHelpers": true,
-    "target": "es2018",
-    "module": "commonjs",
-    "lib": ["ES2018", "DOM"],
+    "moduleResolution": "nodenext",
+    "target": "esnext",
+    "module": "nodenext",
+    "lib": ["esnext", "DOM"],
     "skipLibCheck": true,
     "allowUmdGlobalAccess": true
   },
