@@ -38,6 +38,16 @@ export default class BetterWordCountSettingsTab extends PluginSettingTab {
         });
       });
     new Setting(containerEl)
+      .setName("Show Cursor Position")
+      .setDesc("Display the active cursor position and selection statistics in the status bar.")
+      .addToggle((cb: ToggleComponent) => {
+        cb.setValue(this.plugin.settings.showCursorPosition);
+        cb.onChange(async (value: boolean) => {
+          this.plugin.settings.showCursorPosition = value;
+          await this.plugin.saveSettings();
+        });
+      });
+    new Setting(containerEl)
       .setName("Display Section Counts")
       .setDesc("Choose what to display next to headings: disable, word counts, or character counts.")
       .addDropdown((dropdown) => {

@@ -45,6 +45,7 @@ export const BLANK_SB_ITEM: StatusBarItem = {
 export interface BetterWordCountSettings {
   statusBar: StatusBarItem[];
   altBar: StatusBarItem[];
+  showCursorPosition: boolean;
   countComments: boolean;
   collectStats: boolean;
   pageWords: number;
@@ -81,6 +82,7 @@ export const DEFAULT_SETTINGS: BetterWordCountSettings = {
       },
     },
   ],
+  showCursorPosition: true,
   countComments: false,
   collectStats: false,
   sectionCountDisplayMode: SectionCountDisplayMode.disable,

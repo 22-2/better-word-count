@@ -2,6 +2,7 @@ import { MarkdownView, Plugin, WorkspaceLeaf, type FileManager } from "obsidian"
 import BetterWordCountSettingsTab from "./settings/SettingsTab";
 import StatsManager from "./stats/StatsManager";
 import StatusBar from "./status/StatusBar";
+import CursorPositionStatusBar from "./status/CursorPositionStatusBar";
 import type { EditorView } from "@codemirror/view";
 import {
   settingsChanged,
@@ -17,12 +18,14 @@ import { handleFileMenu } from "./utils/FileMenu";
 export default class BetterWordCount extends Plugin {
   public settings: BetterWordCountSettings;
   public statusBar: StatusBar;
+  public cursorPositionStatusBar: CursorPositionStatusBar;
   public statsManager: StatsManager;
   public api: BetterWordCountApi = new BetterWordCountApi(this);
 
   async onunload(): Promise<void> {
     this.statsManager = null;
     this.statusBar = null;
+    this.cursorPositionStatusBar = null;
   }
 
   async onload() {
@@ -71,6 +74,9 @@ export default class BetterWordCount extends Plugin {
     // Handle Status Bar
     let statusBarEl = this.addStatusBarItem();
     this.statusBar = new StatusBar(statusBarEl, this);
+    // Keep cursor statistics separate so the existing configurable count item stays unchanged.
+    this.cursorPositionStatusBar = new CursorPositionStatusBar(this);
+    this.cursorPositionStatusBar.setup();
 
     // Handle the Editor Plugins
     this.registerEditorExtension([pluginField.init(() => this), statusBarEditorPlugin, sectionWordCountEditorPlugin]);
@@ -103,6 +109,7 @@ export default class BetterWordCount extends Plugin {
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
+    this.cursorPositionStatusBar?.updateVisibility();
   }
 
   onDisplaySectionCountsChange() {
