@@ -1,13 +1,11 @@
-import { MarkdownView, Plugin, WorkspaceLeaf, type FileManager } from "obsidian";
+import { MarkdownView, Plugin, type FileManager } from "obsidian";
 import BetterWordCountSettingsTab from "./settings/SettingsTab";
-import StatusBar from "./status/StatusBar";
 import CursorPositionStatusBar from "./status/CursorPositionStatusBar";
 import type { EditorView } from "@codemirror/view";
 import {
   settingsChanged,
   pluginField,
   sectionWordCountEditorPlugin,
-  statusBarEditorPlugin,
 } from "./editor/EditorPlugin";
 import {
   BetterWordCountSettings,
@@ -17,12 +15,10 @@ import BetterWordCountApi from "src/api/api";
 
 export default class BetterWordCount extends Plugin {
   declare public settings: BetterWordCountSettings;
-  public statusBar: StatusBar;
   public cursorPositionStatusBar: CursorPositionStatusBar;
   public api: BetterWordCountApi = new BetterWordCountApi(this);
 
   async onunload(): Promise<void> {
-    this.statusBar = null;
     this.cursorPositionStatusBar = null;
   }
 
@@ -65,24 +61,12 @@ export default class BetterWordCount extends Plugin {
       },
     });
 
-    // Handle Status Bar
-    let statusBarEl = this.addStatusBarItem();
-    this.statusBar = new StatusBar(statusBarEl, this);
-    // Keep cursor statistics in a separate item from the fixed document counts.
+    // The fixed document counter was removed; keep cursor statistics as the dedicated item.
     this.cursorPositionStatusBar = new CursorPositionStatusBar(this);
     this.cursorPositionStatusBar.setup();
 
     // Handle the Editor Plugins
-    this.registerEditorExtension([pluginField.init(() => this), statusBarEditorPlugin, sectionWordCountEditorPlugin]);
-
-    this.registerEvent(
-      this.app.workspace.on("active-leaf-change", (leaf: WorkspaceLeaf) => {
-        if (leaf.view.getViewType() !== "markdown") {
-          this.statusBar.updateAltBar();
-        }
-
-      }),
-    );
+    this.registerEditorExtension([pluginField.init(() => this), sectionWordCountEditorPlugin]);
 
   }
 

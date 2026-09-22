@@ -11,7 +11,7 @@ This plugin is the same as the built-in **Word Count** plugin, except when you s
 - Works with all languages.
 - Can display a variety of different stats. Including:
   - Words, Characters, Sentences, Footnotes, and Pandoc Citations in current file.
-- Displays words and characters while editing a Markdown file and the Markdown file count elsewhere.
+- Displays cursor position and character statistics while editing a Markdown file.
 
 ## Contributors
 
