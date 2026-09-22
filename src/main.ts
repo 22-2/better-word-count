@@ -14,7 +14,6 @@ import {
   DEFAULT_SETTINGS,
 } from "src/settings/Settings";
 import BetterWordCountApi from "src/api/api";
-import { handleFileMenu } from "./utils/FileMenu";
 
 export default class BetterWordCount extends Plugin {
   declare public settings: BetterWordCountSettings;
@@ -85,12 +84,6 @@ export default class BetterWordCount extends Plugin {
       }),
     );
 
-    // Register a new action for right clicking on folders
-    this.registerEvent(
-      this.app.workspace.on("file-menu", (menu, file, source) => {
-        handleFileMenu(menu, file, source, this);
-      })
-    );
   }
 
   async saveSettings(): Promise<void> {
