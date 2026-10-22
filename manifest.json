@@ -1,9 +1,9 @@
 {
   "id": "better-word-count",
-  "name": "Better Word Count (Luke Leppan, 22-2)",
+  "name": "Better Word Count",
   "version": "0.11.0",
   "description": "Counts the words of selected text in the editor.",
-  "author": "Luke Leppan",
+  "author": "Luke Leppan, 22-2",
   "authorUrl": "https://lukeleppan.com",
   "isDesktopOnly": false,
   "minAppVersion": "1.13.0"
